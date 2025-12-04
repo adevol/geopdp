@@ -7,6 +7,7 @@ on:
     branches: [ main, develop ]
 
 jobs:
+  # Run tests across multiple OS and Python versions
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -26,14 +27,36 @@ jobs:
       run: uv python install ${{ matrix.python-version }}
     
     - name: Install dependencies
-      run: uv sync
+      run: uv sync --all-extras
     
     - name: Run tests
       run: uv run pytest -v --tb=short
+
+  # Linting and code quality checks
+  lint:
+    runs-on: ubuntu-latest
     
-    - name: Run linting
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+    
+    - name: Set up Python
+      run: uv python install 3.11
+    
+    - name: Install dependencies
+      run: uv sync
+    
+    - name: Run ruff
       run: uv run ruff check .
-      
+    
+    - name: Run black
+      run: uv run black --check .
+
+  # Code coverage reporting
   coverage:
     runs-on: ubuntu-latest
     
@@ -55,4 +78,68 @@ jobs:
       run: uv pip install pytest-cov
     
     - name: Run tests with coverage
-      run: uv run pytest --cov=geopdp --cov-report=term-missing
+      run: uv run pytest --cov=geopdp --cov-report=term-missing --cov-report=xml
+    
+    - name: Upload coverage to Codecov (optional)
+      uses: codecov/codecov-action@v4
+      if: github.event_name == 'push'
+      continue-on-error: true
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  # Check that notebooks are cleaned (no outputs)
+  check-notebooks:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install nbstripout
+      run: pip install nbstripout
+    
+    - name: Strip notebook outputs
+      run: nbstripout --recursive .
+    
+    - name: Check if notebooks changed
+      run: |
+        if ! git diff --quiet -- '*.ipynb'; then
+          echo "❌ Notebook outputs detected. Please clean them before pushing."
+          echo "Run: nbstripout --recursive ."
+          exit 1
+        fi
+        echo "✅ All notebooks are clean"
+
+  # Check that requirements.txt is up to date (optional check)
+  check-requirements:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+    
+    - name: Check if requirements.txt exists
+      id: check-file
+      run: |
+        if [ -f requirements.txt ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Compile requirements from pyproject
+      if: steps.check-file.outputs.exists == 'true'
+      run: uv pip compile pyproject.toml -o requirements-check.txt
+    
+    - name: Compare requirements
+      if: steps.check-file.outputs.exists == 'true'
+      run: |
+        if ! diff requirements.txt requirements-check.txt; then
+          echo "❌ requirements.txt is not up to date with pyproject.toml"
+          echo "Run: uv pip compile pyproject.toml -o requirements.txt"
+          exit 1
+        fi
+        echo "✅ requirements.txt is up to date"
