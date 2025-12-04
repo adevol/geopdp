@@ -99,13 +99,13 @@ jobs:
       run: pip install nbstripout
     
     - name: Strip notebook outputs
-      run: nbstripout --recursive .
+      run: find . -name '*.ipynb' -exec nbstripout {} +
     
     - name: Check if notebooks changed
       run: |
         if ! git diff --quiet -- '*.ipynb'; then
           echo "❌ Notebook outputs detected. Please clean them before pushing."
-          echo "Run: nbstripout --recursive ."
+          echo "Run: find . -name '*.ipynb' -exec nbstripout {} +"
           exit 1
         fi
         echo "✅ All notebooks are clean"
