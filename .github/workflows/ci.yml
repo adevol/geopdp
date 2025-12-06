@@ -107,11 +107,11 @@ jobs:
     - name: Check if notebooks changed
       run: |
         if ! git diff --quiet -- '*.ipynb'; then
-          echo "❌ Notebook outputs detected. Please clean them before pushing."
+          echo "Notebook outputs detected. Please clean them before pushing."
           echo "Run: find . -name '*.ipynb' -exec nbstripout {} +"
           exit 1
         fi
-        echo "✅ All notebooks are clean"
+        echo "All notebooks are clean"
 
   # Check that requirements.txt is up to date (optional check)
   check-requirements:
@@ -141,8 +141,8 @@ jobs:
       if: steps.check-file.outputs.exists == 'true'
       run: |
         if ! diff requirements.txt requirements-check.txt; then
-          echo "❌ requirements.txt is not up to date with pyproject.toml"
+          echo "requirements.txt is not up to date with pyproject.toml"
           echo "Run: uv pip compile pyproject.toml -o requirements.txt"
           exit 1
         fi
-        echo "✅ requirements.txt is up to date"
+        echo "requirements.txt is up to date"
