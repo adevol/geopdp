@@ -88,7 +88,9 @@ def test_compare_geojson_geometry_mixed_inputs():
     gdf = gpd.read_file(SAMPLE_REGIONS_GEOJSON)
 
     fig = compare_geojson_geometry(
-        SAMPLE_REGIONS_GEOJSON, gdf, title="Mixed Input Test"  # Path  # GeoDataFrame
+        SAMPLE_REGIONS_GEOJSON,
+        gdf,
+        title="Mixed Input Test",  # Path  # GeoDataFrame
     )
 
     assert isinstance(fig, go.Figure)

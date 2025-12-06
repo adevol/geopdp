@@ -14,75 +14,75 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.11', '3.12']
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v4
       with:
         enable-cache: true
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: uv sync --all-extras --dev
-    
+
     - name: Run tests
       run: uv run pytest -v --tb=short
 
   # Linting and code quality checks
   lint:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v4
       with:
         enable-cache: true
-    
+
     - name: Set up Python
       run: uv python install 3.11
-    
+
     - name: Install dependencies
       run: uv sync
-    
+
     - name: Install dev tools
       run: uv pip install ruff black
-    
+
     - name: Run ruff
       run: uv run ruff check .
-    
+
     - name: Run black
       run: uv run black --check .
 
   # Code coverage reporting
   coverage:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v4
       with:
         enable-cache: true
-    
+
     - name: Set up Python
       run: uv python install 3.11
-    
+
     - name: Install dependencies
       run: uv sync --dev
-    
+
     - name: Install pytest-cov
       run: uv pip install pytest-cov
-    
+
     - name: Run tests with coverage
       run: uv run pytest --cov=geopdp --cov-report=term-missing --cov-report=xml
-    
+
     - name: Upload coverage to Codecov (optional)
       uses: codecov/codecov-action@v4
       if: github.event_name == 'push'
@@ -94,16 +94,16 @@ jobs:
   # Check that notebooks are cleaned (no outputs)
   check-notebooks:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install nbstripout
       run: pip install nbstripout
-    
+
     - name: Strip notebook outputs
       run: find . -name '*.ipynb' -exec nbstripout {} +
-    
+
     - name: Check if notebooks changed
       run: |
         if ! git diff --quiet -- '*.ipynb'; then
@@ -117,13 +117,13 @@ jobs:
   check-requirements:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v4
-    
+
     - name: Check if requirements.txt exists
       id: check-file
       run: |
@@ -132,11 +132,11 @@ jobs:
         else
           echo "exists=false" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: Compile requirements from pyproject
       if: steps.check-file.outputs.exists == 'true'
       run: uv pip compile pyproject.toml -o requirements-check.txt
-    
+
     - name: Compare requirements
       if: steps.check-file.outputs.exists == 'true'
       run: |

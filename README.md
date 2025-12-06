@@ -53,7 +53,7 @@ from geopdp import compute_geopdp, plot_geopdp
 from geopdp.data import TANZANIA_GEOJSON
 
 # 1. Load your data and trained pipeline
-pipe: Pipeline = ... 
+pipe: Pipeline = ...
 X: pd.DataFrame = ...
 
 # 2. Compute PDPs for each region in the GeoJSON
@@ -85,7 +85,7 @@ from geopdp.data import TANZANIA_GEOJSON
 
 # Reduce vertices and coordinate precision
 simplified_gdf = simplify_geojson(
-    TANZANIA_GEOJSON, 
+    TANZANIA_GEOJSON,
     tolerance=0.01,  # Higher = more simplification
     precision=0.001  # Grid size for coordinate snapping
 )
@@ -99,7 +99,7 @@ fig.show()
 
 Check out the **[spatial PDP demo notebook](notebooks/spatial_pdp_demo.ipynb)** for a complete example with synthetic data showing:
 - Training a model on geospatial health data
-- Computing spatial PDPs across Tanzanian regions  
+- Computing spatial PDPs across Tanzanian regions
 - Visualizing geographic patterns in model predictions
 - Geometry simplification for faster rendering
 
