@@ -6,6 +6,10 @@
 
 `geopdp` is built on top of `scikit-learn` and `plotly`, and extends their capabilities to handle geospatial data. Contributions are welcome and encouraged!
 
+<p align="center">
+  <img src="docs/images/geopdp_example.png" alt="GeoPDP visualization example showing predicted disease probability across Tanzanian regions" width="700">
+</p>
+
 ## Why use geopdp?
 
 Standard PDP tools (like `scikit-learn` or `shap`) operate on tabular data and don't natively understand "regions" or coupled coordinates. Manually calculating spatial PDPs requires writing complex loops to shift data points across regions and aggregate predictions.
