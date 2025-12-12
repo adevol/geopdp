@@ -66,6 +66,10 @@ results = compute_geopdp(
     pipe,
     col_index_to_predict=1,
     geojson_path=TANZANIA_GEOJSON,
+    region_col="region",
+    geojson_region_property="NAME_1",
+    lon_col="longitude",
+    lat_col="latitude",
 )
 
 # 3. Visualize the results
@@ -73,6 +77,8 @@ fig = plot_geopdp(
     results,
     geojson=TANZANIA_GEOJSON,
     region_col="region",
+    geojson_region_property="NAME_1",
+    color_scale="Viridis",
     title="Model Predictions by Region",
 )
 fig.show()

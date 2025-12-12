@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from .data import TANZANIA_GEOJSON
 from .visualization import choropleth_basic
 
 logger = logging.getLogger(__name__)
@@ -25,16 +24,14 @@ class ProbabilisticClassifier(Protocol):
 
 
 def define_midpoint_of_regions(
-    geojson_path: Path | str | None = None,
-    geojson_region_property: str = "NAME_1",
+    geojson_path: Path | str,
+    geojson_region_property: str,
 ) -> dict[str, tuple[float, float]]:
     """Compute representative point coordinates for each region in a GeoJSON file.
 
     Args:
-        geojson_path: Path to a GeoJSON containing region geometries. Defaults to
-            the bundled Tanzania example when None.
-        geojson_region_property: Property name in GeoJSON features that identifies
-            the region.
+        geojson_path: Path to a GeoJSON containing region geometries.
+        geojson_region_property: Property name in the GeoJSON that identifies regions.
 
     Returns:
         Dictionary mapping region names to (longitude, latitude) tuples.
@@ -48,10 +45,7 @@ def define_midpoint_of_regions(
     except ImportError as exc:
         raise ImportError("GeoPandas is required for midpoint calculations.") from exc
 
-    if geojson_path is None:
-        geojson_path = TANZANIA_GEOJSON
-    else:
-        geojson_path = Path(geojson_path)
+    geojson_path = Path(geojson_path)
 
     if not geojson_path.exists():
         raise FileNotFoundError(f"GeoJSON file not found at {geojson_path}")
@@ -72,9 +66,9 @@ def make_copy_of_dataset_with_midpoints(
     X: pd.DataFrame,
     new_region: str,
     midpoint_coords: Sequence[float],
-    region_col: str = "region",
-    lon_col: str = "longitude",
-    lat_col: str = "latitude",
+    region_col: str,
+    lon_col: str,
+    lat_col: str,
 ) -> pd.DataFrame:
     """Return a dataset copy where coordinates match the provided midpoint.
 
@@ -82,13 +76,12 @@ def make_copy_of_dataset_with_midpoints(
         X: Original dataset.
         new_region: Name of the region to stamp on the copy.
         midpoint_coords: Tuple or list with (longitude, latitude).
-        region_col: Name of the column in X that holds region labels.
+        region_col: Name of the column containing region identifiers.
         lon_col: Name of the longitude column.
         lat_col: Name of the latitude column.
 
     Returns:
-        Dataset copy with updated longitude, latitude, and region values
-        (if region column exists).
+        DataFrame copy with updated region and coordinates.
 
     Raises:
         ValueError: If midpoint_coords does not contain exactly two values.
@@ -194,33 +187,33 @@ def compute_geopdp(
     X: pd.DataFrame,
     pipe: ProbabilisticClassifier,
     *,
-    col_index_to_predict: int = 0,
-    geojson_path: Path | str | None = None,
-    region_col: str = "region",
-    geojson_region_property: str = "NAME_1",
-    lon_col: str = "longitude",
-    lat_col: str = "latitude",
+    geojson_path: Path | str,
+    region_col: str,
+    geojson_region_property: str,
+    lon_col: str,
+    lat_col: str,
+    col_index_to_predict: int | None = None,
 ) -> pd.DataFrame:
     """Generate PDP predictions by sweeping over each region's midpoint.
 
     Args:
         X: Input dataset used for making predictions.
         pipe: Trained model or pipeline exposing a predict_proba method.
-        col_index_to_predict: Probability column to average. Defaults to 0
-            (first class). Only needed for multi-class classification.
-        geojson_path: GeoJSON file used to derive region midpoints. Defaults to
-            the bundled Tanzania example when None.
-        region_col: Name of the column in X that holds region labels.
-        geojson_region_property: Property name in GeoJSON features that identifies
-            the region.
-        lon_col: Name of the longitude column.
-        lat_col: Name of the latitude column.
+        geojson_path: Path to the GeoJSON file defining region boundaries.
+        region_col: Column name in X that contains region labels.
+        geojson_region_property: Property in the GeoJSON that matches region_col.
+        lon_col: Column name in X for longitude.
+        lat_col: Column name in X for latitude.
+        col_index_to_predict: Index of the class probability to return (e.g. 1 for
+            positive class). Defaults to 0 for binary classification. Required for
+            multi-class problems.
 
     Returns:
-        DataFrame mapping region names to averaged prediction probabilities.
+        DataFrame with two columns: region and geopdp (mean predicted probability).
 
     Raises:
-        ValueError: When col_index_to_predict is outside the pipeline output.
+        ValueError: When col_index_to_predict is outside the pipeline output, or
+            when it is missing for multi-class problems.
     """
     logger.info(f"Computing GeoPDP for {len(X)} samples across regions")
     midpoints_coords = define_midpoint_of_regions(
@@ -235,6 +228,15 @@ def compute_geopdp(
 
     preds = pipe.predict_proba(big_X)
 
+    if col_index_to_predict is None:
+        if preds.shape[1] == 2:
+            col_index_to_predict = 0
+        else:
+            raise ValueError(
+                "col_index_to_predict must be specified for multi-class problems "
+                f"(found {preds.shape[1]} classes)."
+            )
+
     final_df = _aggregate_pdp_results(
         preds, col_index_to_predict, all_regions, region_col
     )
@@ -245,11 +247,12 @@ def compute_geopdp(
 
 def plot_geopdp(
     df: pd.DataFrame,
-    geojson: Path | str | gpd.GeoDataFrame | None = None,
-    region_col: str = "region",
-    geojson_region_property: str = "NAME_1",
+    *,
+    geojson: Path | str | gpd.GeoDataFrame,
+    region_col: str,
+    geojson_region_property: str,
+    color_scale: str,
     title: str | None = None,
-    color_scale: str = "Viridis",
     range_color: Sequence[float] | None = None,
 ) -> go.Figure:
     """Plot a choropleth visualizing PDP values by region.
@@ -257,18 +260,16 @@ def plot_geopdp(
     Args:
         df: DataFrame containing PDP results with a region column.
         geojson: Path to the GeoJSON or GeoDataFrame containing region
-            boundaries. Defaults to the bundled Tanzania example when None.
-        region_col: Name of the column with region labels in df.
-        geojson_region_property: GeoJSON feature property containing region names.
-        title: Optional figure title.
-        color_scale: Plotly color scale name.
+            boundaries.
+        region_col: Column in df containing region names.
+        geojson_region_property: Property in the GeoJSON that matches region_col.
+        color_scale: Name of the Plotly color scale to use (e.g. "Viridis").
+        title: Title of the chart.
         range_color: Optional min/max range for the color scale.
 
     Returns:
-        Plotly Figure object with the choropleth visualization.
+        Plotly Figure object.
     """
-    if geojson is None:
-        geojson = TANZANIA_GEOJSON
 
     return choropleth_basic(
         df,

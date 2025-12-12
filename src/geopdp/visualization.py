@@ -24,7 +24,7 @@ def choropleth_basic(
     geojson: Path | str | gpd.GeoDataFrame,
     geojson_region_property: str,
     title: str | None,
-    color_scale: str = "Viridis",
+    color_scale: str,
     range_color: Sequence[float] | None = None,
 ) -> go.Figure:
     """Create a Plotly choropleth for regional PDP values.

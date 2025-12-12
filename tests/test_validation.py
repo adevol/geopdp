@@ -11,7 +11,14 @@ def test_make_copy_validates_column_existence():
     df = pd.DataFrame({"foo": [1, 2, 3]})
 
     with pytest.raises(KeyError) as exc_info:
-        make_copy_of_dataset_with_midpoints(df, "Test", (10.0, 20.0))
+        make_copy_of_dataset_with_midpoints(
+            df,
+            "Test",
+            (10.0, 20.0),
+            region_col="region",
+            lon_col="longitude",
+            lat_col="latitude",
+        )
 
     error_msg = str(exc_info.value)
     assert "longitude" in error_msg or "latitude" in error_msg
@@ -24,7 +31,12 @@ def test_make_copy_validates_custom_columns():
 
     with pytest.raises(KeyError) as exc_info:
         make_copy_of_dataset_with_midpoints(
-            df, "Test", (10.0, 20.0), lon_col="x", lat_col="y"
+            df,
+            "Test",
+            (10.0, 20.0),
+            region_col="region",
+            lon_col="x",
+            lat_col="y",
         )
 
     error_msg = str(exc_info.value)

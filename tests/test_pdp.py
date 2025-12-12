@@ -12,7 +12,14 @@ def test_make_copy_of_dataset_with_midpoints_updates_columns_without_touching_so
     original = pd.DataFrame(
         {"longitude": [1.0, 2.0], "latitude": [-1.0, -2.0], "region": ["A", "B"]}
     )
-    updated = make_copy_of_dataset_with_midpoints(original, "New", (42.0, -10.0))
+    updated = make_copy_of_dataset_with_midpoints(
+        original,
+        "New",
+        (42.0, -10.0),
+        region_col="region",
+        lon_col="longitude",
+        lat_col="latitude",
+    )
 
     assert (original["longitude"] == [1.0, 2.0]).all()
     assert (original["region"] == ["A", "B"]).all()
@@ -24,12 +31,26 @@ def test_make_copy_of_dataset_with_midpoints_updates_columns_without_touching_so
 def test_make_copy_of_dataset_with_midpoints_validates_coordinate_length():
     df = pd.DataFrame({"longitude": [0.0], "latitude": [0.0], "region": ["Start"]})
     with pytest.raises(ValueError):
-        make_copy_of_dataset_with_midpoints(df, "Broken", (10.0,))
+        make_copy_of_dataset_with_midpoints(
+            df,
+            "Broken",
+            (10.0,),
+            region_col="region",
+            lon_col="longitude",
+            lat_col="latitude",
+        )
 
 
 def test_make_copy_of_dataset_with_midpoints_handles_missing_region_column():
     original = pd.DataFrame({"longitude": [1.0, 2.0], "latitude": [-1.0, -2.0]})
-    updated = make_copy_of_dataset_with_midpoints(original, "New", (42.0, -10.0))
+    updated = make_copy_of_dataset_with_midpoints(
+        original,
+        "New",
+        (42.0, -10.0),
+        region_col="region",
+        lon_col="longitude",
+        lat_col="latitude",
+    )
 
     assert "region" not in updated.columns
     assert (updated["longitude"] == 42.0).all()
@@ -39,7 +60,12 @@ def test_make_copy_of_dataset_with_midpoints_handles_missing_region_column():
 def test_make_copy_of_dataset_with_midpoints_uses_custom_columns():
     original = pd.DataFrame({"x": [1.0, 2.0], "y": [-1.0, -2.0], "region": ["A", "B"]})
     updated = make_copy_of_dataset_with_midpoints(
-        original, "New", (42.0, -10.0), lon_col="x", lat_col="y"
+        original,
+        "New",
+        (42.0, -10.0),
+        region_col="region",
+        lon_col="x",
+        lat_col="y",
     )
 
     assert (updated["x"] == 42.0).all()
@@ -73,7 +99,16 @@ def test_compute_geopdp_computes_average_probabilities(monkeypatch):
                 # Fallback if region is not passed
                 return np.tile([0.5, 0.5], (len(df), 1))
 
-    df_results = compute_geopdp(X, DummyPipeline())
+    df_results = compute_geopdp(
+        X,
+        DummyPipeline(),
+        col_index_to_predict=0,
+        geojson_path="dummy.geojson",
+        region_col="region",
+        geojson_region_property="NAME_1",
+        lon_col="longitude",
+        lat_col="latitude",
+    )
     df_results = df_results.sort_values("region").reset_index(drop=True)
 
     assert list(df_results["region"]) == ["North", "South"]
@@ -102,7 +137,83 @@ def test_compute_geopdp_passes_custom_columns(monkeypatch):
             assert (df["y"] == -2.0).all()
             return np.tile([0.1, 0.9], (len(df), 1))
 
-    compute_geopdp(X, DummyPipeline(), lon_col="x", lat_col="y")
+    compute_geopdp(
+        X,
+        DummyPipeline(),
+        col_index_to_predict=0,
+        geojson_path="dummy.geojson",
+        region_col="region",
+        geojson_region_property="NAME_1",
+        lon_col="x",
+        lat_col="y",
+    )
+
+
+def test_compute_geopdp_defaults_to_index_0_for_binary_class(monkeypatch):
+    X = pd.DataFrame(
+        {
+            "longitude": [0.0, 1.0],
+            "latitude": [0.0, 1.0],
+            "region": ["seed", "seed"],
+        }
+    )
+
+    def fake_midpoints(*args, **kwargs):
+        return {"North": (10.0, -2.0)}
+
+    monkeypatch.setattr("geopdp.pdp.define_midpoint_of_regions", fake_midpoints)
+
+    class BinaryPipeline:
+        def predict_proba(self, df):
+            # Returns 2 columns (binary classification)
+            # Col 0: 0.1, Col 1: 0.9
+            return np.tile([0.1, 0.9], (len(df), 1))
+
+    # Should not raise, and should use index 0 by default (0.1)
+    df_results = compute_geopdp(
+        X,
+        BinaryPipeline(),
+        geojson_path="dummy.geojson",
+        region_col="region",
+        geojson_region_property="NAME_1",
+        lon_col="longitude",
+        lat_col="latitude",
+        # col_index_to_predict is omitted
+    )
+
+    assert df_results.loc[0, "prediction"] == pytest.approx(0.1)
+
+
+def test_compute_geopdp_raises_for_multiclass_without_index(monkeypatch):
+    X = pd.DataFrame(
+        {
+            "longitude": [0.0],
+            "latitude": [0.0],
+            "region": ["seed"],
+        }
+    )
+
+    def fake_midpoints(*args, **kwargs):
+        return {"North": (10.0, -2.0)}
+
+    monkeypatch.setattr("geopdp.pdp.define_midpoint_of_regions", fake_midpoints)
+
+    class MultiClassPipeline:
+        def predict_proba(self, df):
+            # Returns 3 columns
+            return np.tile([0.1, 0.2, 0.7], (len(df), 1))
+
+    with pytest.raises(ValueError, match="col_index_to_predict must be specified"):
+        compute_geopdp(
+            X,
+            MultiClassPipeline(),
+            geojson_path="dummy.geojson",
+            region_col="region",
+            geojson_region_property="NAME_1",
+            lon_col="longitude",
+            lat_col="latitude",
+            # col_index_to_predict is omitted
+        )
 
 
 def test_plot_geopdp_smoke_test(monkeypatch):
@@ -116,5 +227,11 @@ def test_plot_geopdp_smoke_test(monkeypatch):
 
     monkeypatch.setattr("geopdp.pdp.choropleth_basic", fake_choropleth)
 
-    fig = plot_geopdp(df)
+    fig = plot_geopdp(
+        df,
+        geojson="dummy.geojson",
+        region_col="region",
+        geojson_region_property="NAME_1",
+        color_scale="Viridis",
+    )
     assert fig == "Figure"

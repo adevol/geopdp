@@ -19,6 +19,7 @@ def test_choropleth_basic_with_path():
         geojson=SAMPLE_REGIONS_GEOJSON,
         geojson_region_property="NAME",
         title="Test Choropleth",
+        color_scale="Viridis",
     )
 
     assert isinstance(fig, go.Figure)
@@ -38,6 +39,7 @@ def test_choropleth_basic_with_geodataframe():
         geojson=gdf,
         geojson_region_property="NAME",
         title=None,
+        color_scale="Viridis",
     )
 
     assert isinstance(fig, go.Figure)
