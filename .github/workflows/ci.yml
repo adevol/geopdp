@@ -30,7 +30,7 @@ jobs:
       run: uv sync --all-extras --dev
 
     - name: Run tests
-      run: uv run pytest -v --tb=short
+      run: uv run invoke test
 
   # Linting and code quality checks
   lint:
@@ -48,16 +48,10 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: uv sync
+      run: uv sync --all-extras --dev
 
-    - name: Install dev tools
-      run: uv pip install ruff black
-
-    - name: Run ruff
-      run: uv run ruff check .
-
-    - name: Run black
-      run: uv run black --check .
+    - name: Run linting
+      run: uv run invoke lint
 
   # Code coverage reporting
   coverage:
@@ -75,13 +69,10 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: uv sync --dev
-
-    - name: Install pytest-cov
-      run: uv pip install pytest-cov
+      run: uv sync --all-extras --dev
 
     - name: Run tests with coverage
-      run: uv run pytest --cov=geopdp --cov-report=term-missing --cov-report=xml
+      run: uv run invoke test --coverage
 
     - name: Upload coverage to Codecov (optional)
       uses: codecov/codecov-action@v4
@@ -98,20 +89,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install nbstripout
-      run: pip install nbstripout
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
 
-    - name: Strip notebook outputs
-      run: find . -name '*.ipynb' -exec nbstripout {} +
+    - name: Set up Python
+      run: uv python install 3.11
 
-    - name: Check if notebooks changed
-      run: |
-        if ! git diff --quiet -- '*.ipynb'; then
-          echo "Notebook outputs detected. Please clean them before pushing."
-          echo "Run: find . -name '*.ipynb' -exec nbstripout {} +"
-          exit 1
-        fi
-        echo "All notebooks are clean"
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Check notebooks
+      run: uv run invoke check-notebooks
 
   # Check that requirements.txt is up to date (optional check)
   check-requirements:
@@ -123,26 +113,14 @@ jobs:
 
     - name: Install uv
       uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
 
-    - name: Check if requirements.txt exists
-      id: check-file
-      run: |
-        if [ -f requirements.txt ]; then
-          echo "exists=true" >> $GITHUB_OUTPUT
-        else
-          echo "exists=false" >> $GITHUB_OUTPUT
-        fi
+    - name: Set up Python
+      run: uv python install 3.11
 
-    - name: Compile requirements from pyproject
-      if: steps.check-file.outputs.exists == 'true'
-      run: uv pip compile pyproject.toml -o requirements-check.txt
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
 
-    - name: Compare requirements
-      if: steps.check-file.outputs.exists == 'true'
-      run: |
-        if ! diff requirements.txt requirements-check.txt; then
-          echo "requirements.txt is not up to date with pyproject.toml"
-          echo "Run: uv pip compile pyproject.toml -o requirements.txt"
-          exit 1
-        fi
-        echo "requirements.txt is up to date"
+    - name: Check requirements
+      run: uv run invoke check-requirements

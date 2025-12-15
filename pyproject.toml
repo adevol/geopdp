@@ -36,9 +36,9 @@ Issues = "https://github.com/adevol/geopdp/issues"
 dev = [
     "pytest>=8.2",
     "ruff>=0.4.0",
-    "black>=24.0.0",
     "pre-commit>=3.5.0",
     "nbstripout>=0.7.0",
+    "invoke>=2.0",
 ]
 
 [build-system]
@@ -56,9 +56,7 @@ include = [
     "README.md",
 ]
 
-[tool.black]
-line-length = 88
-target-version = ['py311']
+
 
 [tool.ruff]
 line-length = 88
