@@ -75,10 +75,11 @@ jobs:
       run: uv run invoke test --coverage
 
     - name: Upload coverage to Codecov (optional)
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       if: github.event_name == 'push'
       continue-on-error: true
       with:
+        token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
         fail_ci_if_error: false
 
