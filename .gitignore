@@ -9,5 +9,12 @@ wheels/
 # Virtual environments
 .venv
 
+# Testing and Coverage
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+
 # Working documents (adjust before release)
 ROADMAP.md
