@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
+from .utils import load_geodataframe
 from .visualization import choropleth_basic
 
 logger = logging.getLogger(__name__)
@@ -24,33 +25,22 @@ class ProbabilisticClassifier(Protocol):
 
 
 def define_midpoint_of_regions(
-    geojson_path: Path | str,
+    geojson: Path | str | gpd.GeoDataFrame,
     geojson_region_property: str,
 ) -> dict[str, tuple[float, float]]:
     """Compute representative point coordinates for each region in a GeoJSON file.
 
     Args:
-        geojson_path: Path to a GeoJSON containing region geometries.
+        geojson: Path to a GeoJSON file or a GeoDataFrame containing region geometries.
         geojson_region_property: Property name in the GeoJSON that identifies regions.
 
     Returns:
         Dictionary mapping region names to (longitude, latitude) tuples.
 
     Raises:
-        ImportError: If GeoPandas is not installed.
-        FileNotFoundError: If the GeoJSON file cannot be located.
+        FileNotFoundError: If the GeoJSON path does not exist.
     """
-    try:
-        import geopandas as gpd
-    except ImportError as exc:
-        raise ImportError("GeoPandas is required for midpoint calculations.") from exc
-
-    geojson_path = Path(geojson_path)
-
-    if not geojson_path.exists():
-        raise FileNotFoundError(f"GeoJSON file not found at {geojson_path}")
-
-    gdf = gpd.read_file(geojson_path)
+    gdf = load_geodataframe(geojson, "GeoJSON")
     midpoints: dict[str, tuple[float, float]] = {}
 
     for idx in gdf.index:
@@ -187,7 +177,7 @@ def compute_geopdp(
     X: pd.DataFrame,
     pipe: ProbabilisticClassifier,
     *,
-    geojson_path: Path | str,
+    geojson: Path | str | gpd.GeoDataFrame,
     region_col: str,
     geojson_region_property: str,
     lon_col: str,
@@ -199,7 +189,7 @@ def compute_geopdp(
     Args:
         X: Input dataset used for making predictions.
         pipe: Trained model or pipeline exposing a predict_proba method.
-        geojson_path: Path to the GeoJSON file defining region boundaries.
+        geojson: Path to a GeoJSON file or a GeoDataFrame defining region boundaries.
         region_col: Column name in X that contains region labels.
         geojson_region_property: Property in the GeoJSON that matches region_col.
         lon_col: Column name in X for longitude.
@@ -217,7 +207,7 @@ def compute_geopdp(
     """
     logger.info(f"Computing GeoPDP for {len(X)} samples across regions")
     midpoints_coords = define_midpoint_of_regions(
-        geojson_path, geojson_region_property=geojson_region_property
+        geojson, geojson_region_property=geojson_region_property
     )
     n_regions = len(midpoints_coords)
     logger.info(f"Processing {n_regions} regions (Vectorized)")

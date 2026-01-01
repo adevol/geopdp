@@ -32,6 +32,6 @@ def load_geodataframe(
         if not path.exists():
             raise FileNotFoundError(
                 f"{error_label} not found at {path}. "
-                f"Please verify the file path exists and you have read permissions."
+                f"Please verify the path exists and you have read permissions."
             )
         return gpd.read_file(path)
