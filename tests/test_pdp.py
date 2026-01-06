@@ -263,7 +263,7 @@ def test_compute_geopdp_works_with_regressor(monkeypatch):
     df_results = compute_geopdp(
         X,
         DummyRegressor(),
-        geojson_path="dummy.geojson",
+        geojson="dummy.geojson",
         region_col="region",
         geojson_region_property="NAME_1",
         lon_col="longitude",
@@ -301,7 +301,7 @@ def test_compute_geopdp_ignores_col_index_for_regressor(monkeypatch):
         X,
         DummyRegressor(),
         col_index_to_predict=5,  # This would fail for classifiers
-        geojson_path="dummy.geojson",
+        geojson="dummy.geojson",
         region_col="region",
         geojson_region_property="NAME_1",
         lon_col="longitude",
@@ -341,7 +341,7 @@ def test_compute_geopdp_handles_multi_output_regressor(monkeypatch):
     df_results = compute_geopdp(
         X,
         MultiOutputRegressor(),
-        geojson_path="dummy.geojson",
+        geojson="dummy.geojson",
         region_col="region",
         geojson_region_property="NAME_1",
         lon_col="longitude",
