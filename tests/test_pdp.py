@@ -235,3 +235,77 @@ def test_plot_geopdp_smoke_test(monkeypatch):
         color_scale="Viridis",
     )
     assert fig == "Figure"
+
+
+def test_compute_geopdp_works_with_regressor(monkeypatch):
+    X = pd.DataFrame(
+        {
+            "longitude": [0.0, 1.0],
+            "latitude": [0.0, 1.0],
+            "region": ["seed", "seed"],
+        }
+    )
+
+    def fake_midpoints(*args, **kwargs):
+        return {"North": (10.0, -2.0), "South": (20.0, -5.0)}
+
+    monkeypatch.setattr("geopdp.pdp.define_midpoint_of_regions", fake_midpoints)
+
+    class DummyRegressor:
+        """Regressor with only predict method (no predict_proba)."""
+
+        def predict(self, df):
+            # Return different values based on region
+            if "region" in df.columns:
+                return np.where(df["region"] == "North", 100.0, 200.0)
+            return np.full(len(df), 150.0)
+
+    df_results = compute_geopdp(
+        X,
+        DummyRegressor(),
+        geojson_path="dummy.geojson",
+        region_col="region",
+        geojson_region_property="NAME_1",
+        lon_col="longitude",
+        lat_col="latitude",
+    )
+    df_results = df_results.sort_values("region").reset_index(drop=True)
+
+    assert list(df_results["region"]) == ["North", "South"]
+    assert df_results.loc[0, "prediction"] == pytest.approx(100.0)
+    assert df_results.loc[1, "prediction"] == pytest.approx(200.0)
+
+
+def test_compute_geopdp_ignores_col_index_for_regressor(monkeypatch):
+    X = pd.DataFrame(
+        {
+            "longitude": [0.0],
+            "latitude": [0.0],
+            "region": ["seed"],
+        }
+    )
+
+    def fake_midpoints(*args, **kwargs):
+        return {"North": (10.0, -2.0)}
+
+    monkeypatch.setattr("geopdp.pdp.define_midpoint_of_regions", fake_midpoints)
+
+    class DummyRegressor:
+        """Regressor with only predict method."""
+
+        def predict(self, df):
+            return np.full(len(df), 42.0)
+
+    # col_index_to_predict should be ignored for regressors
+    df_results = compute_geopdp(
+        X,
+        DummyRegressor(),
+        col_index_to_predict=5,  # This would fail for classifiers
+        geojson_path="dummy.geojson",
+        region_col="region",
+        geojson_region_property="NAME_1",
+        lon_col="longitude",
+        lat_col="latitude",
+    )
+
+    assert df_results.loc[0, "prediction"] == pytest.approx(42.0)
