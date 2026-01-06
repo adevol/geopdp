@@ -309,3 +309,44 @@ def test_compute_geopdp_ignores_col_index_for_regressor(monkeypatch):
     )
 
     assert df_results.loc[0, "prediction"] == pytest.approx(42.0)
+
+
+def test_compute_geopdp_handles_multi_output_regressor(monkeypatch):
+    """Multi-output regressor returns 2D array; should use first column by default."""
+    X = pd.DataFrame(
+        {
+            "longitude": [0.0, 1.0],
+            "latitude": [0.0, 1.0],
+            "region": ["seed", "seed"],
+        }
+    )
+
+    def fake_midpoints(*args, **kwargs):
+        return {"North": (10.0, -2.0)}
+
+    monkeypatch.setattr("geopdp.pdp.define_midpoint_of_regions", fake_midpoints)
+
+    class MultiOutputRegressor:
+        """Regressor returning multiple outputs (2D array)."""
+
+        def predict(self, df):
+            # Returns 2 outputs: first=10.0, second=99.0
+            return np.column_stack(
+                [
+                    np.full(len(df), 10.0),
+                    np.full(len(df), 99.0),
+                ]
+            )
+
+    df_results = compute_geopdp(
+        X,
+        MultiOutputRegressor(),
+        geojson_path="dummy.geojson",
+        region_col="region",
+        geojson_region_property="NAME_1",
+        lon_col="longitude",
+        lat_col="latitude",
+    )
+
+    # Should use first column (10.0), not second (99.0)
+    assert df_results.loc[0, "prediction"] == pytest.approx(10.0)
