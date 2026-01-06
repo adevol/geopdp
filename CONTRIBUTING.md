@@ -29,17 +29,27 @@ When adding new features or modifying existing ones, adhere to the following pri
 
 1.  **Install dependencies**:
     ```bash
-    uv sync
+    uv sync --extra dev
     ```
 
-2.  **Run tests**:
+2.  **Set up pre-commit hooks**:
+    ```bash
+    uv run pre-commit install
+    ```
+
+3.  **Run tests**:
     ```bash
     uv run pytest
     ```
 
-3.  **Linting**:
+4.  **Linting**:
     ```bash
     uv run ruff check .
+    ```
+
+5.  **Running notebooks** (optional):
+    ```bash
+    uv sync --extra notebook
     ```
 
 ## Pull Requests

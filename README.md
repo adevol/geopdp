@@ -65,7 +65,7 @@ results = compute_geopdp(
     X,
     pipe,
     col_index_to_predict=1,
-    geojson_path=TANZANIA_GEOJSON,
+    geojson=TANZANIA_GEOJSON,
     region_col="region",
     geojson_region_property="NAME_1",
     lon_col="longitude",

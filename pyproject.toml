@@ -41,6 +41,11 @@ dev = [
     "invoke>=2.0",
     "pytest-cov>=5.0.0",
 ]
+notebook = [
+    "ipython>=8.0",
+    "matplotlib>=3.8",
+    "jupyter>=1.0",
+]
 
 [build-system]
 requires = ["hatchling"]
