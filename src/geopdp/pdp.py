@@ -23,6 +23,24 @@ class ProbabilisticClassifier(Protocol):
     def predict_proba(self, X: Any) -> np.ndarray: ...
 
 
+class Regressor(Protocol):
+    """Protocol for models with predict method (regressors)."""
+
+    def predict(self, X: Any) -> np.ndarray: ...
+
+
+def _is_regressor(model: ProbabilisticClassifier | Regressor) -> bool:
+    """Detect if model is a regressor (no predict_proba, only predict).
+
+    Args:
+        model: A trained model object.
+
+    Returns:
+        True if model is a regressor (has predict but not predict_proba).
+    """
+    return not hasattr(model, "predict_proba") and hasattr(model, "predict")
+
+
 def define_midpoint_of_regions(
     geojson_path: Path | str,
     geojson_region_property: str,
@@ -155,37 +173,67 @@ def _create_permutation_dataset(
     return big_X, all_regions
 
 
+def _extract_target_predictions(
+    preds: np.ndarray,
+    col_index: int | None,
+) -> np.ndarray:
+    """Extract target predictions from model output.
+
+    Handles three cases:
+    - 1D array (single-output regression): returns as-is
+    - 2D array with col_index: returns specified column
+    - 2D array without col_index: returns first column (multi-output regression)
+
+    Args:
+        preds: Prediction array from model.
+        col_index: Column index to extract. None for regression models.
+
+    Returns:
+        1D array of target predictions.
+
+    Raises:
+        ValueError: If col_index exceeds available columns.
+    """
+    if preds.ndim == 1:
+        return preds
+
+    if col_index is None:
+        # Multi-output regression: default to first output
+        return preds[:, 0]
+
+    if col_index >= preds.shape[1]:
+        raise ValueError(
+            f"col_index_to_predict ({col_index}) exceeds available columns "
+            f"({preds.shape[1]})."
+        )
+    return preds[:, col_index]
+
+
 def _aggregate_pdp_results(
     preds: np.ndarray,
-    col_index_to_predict: int,
+    col_index_to_predict: int | None,
     all_regions: list[str],
     region_col: str,
 ) -> pd.DataFrame:
     """Aggregate predictions by region.
 
     Args:
-        preds: Prediction array from model.
+        preds: Prediction array from model (1D or 2D).
         col_index_to_predict: Column index to extract from predictions.
         all_regions: List of region names corresponding to predictions.
         region_col: Name of the region column.
 
     Returns:
         DataFrame with region names and averaged predictions.
-
-    Raises:
-        ValueError: If col_index_to_predict is out of bounds.
     """
-    if preds.ndim != 2 or col_index_to_predict >= preds.shape[1]:
-        raise ValueError("col_index_to_predict exceeds available prediction columns.")
-
-    target_preds = preds[:, col_index_to_predict]
+    target_preds = _extract_target_predictions(preds, col_index_to_predict)
     results_df = pd.DataFrame({region_col: all_regions, "prediction": target_preds})
     return results_df.groupby(region_col, as_index=False)["prediction"].mean()
 
 
 def compute_geopdp(
     X: pd.DataFrame,
-    pipe: ProbabilisticClassifier,
+    pipe: ProbabilisticClassifier | Regressor,
     *,
     geojson_path: Path | str,
     region_col: str,
@@ -196,9 +244,14 @@ def compute_geopdp(
 ) -> pd.DataFrame:
     """Generate PDP predictions by sweeping over each region's midpoint.
 
+    Automatically detects whether the model is a classifier or regressor:
+    - Classifiers (with `predict_proba`): uses probability predictions
+    - Regressors (with only `predict`): uses direct predictions
+
     Args:
         X: Input dataset used for making predictions.
-        pipe: Trained model or pipeline exposing a predict_proba method.
+        pipe: Trained model or pipeline. Can be a classifier with `predict_proba`
+            or a regressor with `predict`.
         geojson_path: Path to the GeoJSON file defining region boundaries.
         region_col: Column name in X that contains region labels.
         geojson_region_property: Property in the GeoJSON that matches region_col.
@@ -206,10 +259,10 @@ def compute_geopdp(
         lat_col: Column name in X for latitude.
         col_index_to_predict: Index of the class probability to return (e.g. 1 for
             positive class). Defaults to 0 for binary classification. Required for
-            multi-class problems.
+            multi-class problems. Ignored for regression models.
 
     Returns:
-        DataFrame with two columns: region and geopdp (mean predicted probability).
+        DataFrame with two columns: region and prediction (mean predicted value).
 
     Raises:
         ValueError: When col_index_to_predict is outside the pipeline output, or
@@ -226,16 +279,23 @@ def compute_geopdp(
         X, midpoints_coords, lon_col, lat_col, region_col
     )
 
-    preds = pipe.predict_proba(big_X)
+    is_regressor = _is_regressor(pipe)
 
-    if col_index_to_predict is None:
-        if preds.shape[1] == 2:
-            col_index_to_predict = 0
-        else:
-            raise ValueError(
-                "col_index_to_predict must be specified for multi-class problems "
-                f"(found {preds.shape[1]} classes)."
-            )
+    if is_regressor:
+        logger.info("Detected regression model, using predict()")
+        preds = pipe.predict(big_X)
+        col_index_to_predict = None
+    else:
+        logger.info("Detected classification model, using predict_proba()")
+        preds = pipe.predict_proba(big_X)
+        if col_index_to_predict is None:
+            if preds.shape[1] == 2:
+                col_index_to_predict = 0
+            else:
+                raise ValueError(
+                    "col_index_to_predict must be specified for multi-class "
+                    f"problems (found {preds.shape[1]} classes)."
+                )
 
     final_df = _aggregate_pdp_results(
         preds, col_index_to_predict, all_regions, region_col
