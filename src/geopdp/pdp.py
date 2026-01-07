@@ -61,6 +61,12 @@ def define_midpoint_of_regions(
     gdf = load_geodataframe(geojson, "GeoJSON")
     midpoints: dict[str, tuple[float, float]] = {}
 
+    if geojson_region_property not in gdf.columns:
+        raise KeyError(
+            f"Region property '{geojson_region_property}' not found in GeoJSON columns."
+            f"Available properties: {list(gdf.columns)}"
+        )
+
     for idx in gdf.index:
         region_name = gdf.loc[idx, geojson_region_property]
         geometry = gdf.loc[idx, "geometry"]
@@ -258,6 +264,31 @@ def compute_geopdp(
         ValueError: When col_index_to_predict is outside the pipeline output, or
             when it is missing for multi-class problems.
     """
+    # 1. Validate DataFrame columns
+    missing_cols = []
+    if region_col not in X.columns:
+        missing_cols.append(region_col)
+    if lon_col not in X.columns:
+        missing_cols.append(lon_col)
+    if lat_col not in X.columns:
+        missing_cols.append(lat_col)
+
+    if missing_cols:
+        raise KeyError(
+            f"Required column(s) {missing_cols} not found in DataFrame X. "
+            f"Available columns: {list(X.columns)}"
+        )
+
+    # 2. Validate Model Capabilities
+    has_predict_proba = hasattr(pipe, "predict_proba")
+    has_predict = hasattr(pipe, "predict")
+
+    if not (has_predict_proba or has_predict):
+        raise TypeError(
+            "The provided model does not implement a recognized prediction method. "
+            "It must have either 'predict_proba' (classifier) or 'predict' (regressor)."
+        )
+
     logger.info(f"Computing GeoPDP for {len(X)} samples across regions")
     midpoints_coords = define_midpoint_of_regions(
         geojson, geojson_region_property=geojson_region_property
